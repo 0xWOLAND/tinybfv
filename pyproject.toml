@@ -1,0 +1,14 @@
+[project]
+name = "tinyfhe"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "algebra",
+    "numpy>=2.2.3",
+    "tinygrad>=0.10.2",
+]
+
+[tool.uv.sources]
+algebra = { git = "https://github.com/tinycrypto/algebra.git" }
