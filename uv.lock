@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 [[package]]
 name = "algebra"
 version = "0.1.0"
-source = { git = "https://github.com/tinycrypto/algebra.git#efd33dc67f839122de9272783ec0a482c4c53fff" }
+source = { git = "https://github.com/tinycrypto/algebra.git#6196cc9f156867eb65bcb948f049460b448c0525" }
 dependencies = [
     { name = "numpy" },
     { name = "sympy" },
