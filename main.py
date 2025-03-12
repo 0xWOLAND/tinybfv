@@ -58,11 +58,27 @@ def homomorphic_add(ct1: tuple[Tensor, Tensor], ct2: tuple[Tensor, Tensor]):
    return (ct1[0] + ct2[0]) % q, (ct1[1] + ct2[1]) % q
 
 if __name__ == "__main__":
+   # Generate key pair
    s, pk = keygen()
-   m1 = Tensor([1, 2, 3,4])
-   m2 = Tensor([2,4,6,0])
+   
+   # Create random messages
+   m1 = Tensor.randint((N,), low=0, high=t, dtype=dtypes.int32)
+   m2 = Tensor.randint((N,), low=0, high=t, dtype=dtypes.int32)
+   
+   # Encrypt messages
    ct1 = encrypt(pk, m1)
    ct2 = encrypt(pk, m2)
+   
+   # Test homomorphic addition
    result = decrypt(s, homomorphic_add(ct1, ct2))
    expected = (m1 + m2) % t
-   assert (result == expected).all().numpy()
+   
+   # Verify correctness
+   assert (result == expected).all().numpy(), "Homomorphic addition test failed"
+   print("Homomorphic addition test passed!")
+   
+   # Print some values for verification
+   print(f"m1: {m1.numpy()}")
+   print(f"m2: {m2.numpy()}")
+   print(f"m1 + m2 (mod {t}): {expected.numpy()}")
+   print(f"Decrypted result: {result.numpy()}")
