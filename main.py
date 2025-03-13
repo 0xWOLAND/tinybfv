@@ -2,7 +2,7 @@ from tinygrad import Tensor, dtypes
 
 N = 2**4  # Ring dimension (polynomial degree + 1)
 t = 2**8  # Plaintext modulus
-q = 2**20 # Ciphertext modulus
+q = 2**20  # Ciphertext modulus
 
 
 def poly_mul(a: Tensor, b: Tensor, N: int, modulus: int):
@@ -62,6 +62,7 @@ def decrypt(sk: Tensor, ct: tuple[Tensor, Tensor]):
 def homomorphic_add(ct1: tuple[Tensor, Tensor], ct2: tuple[Tensor, Tensor]):
     return (ct1[0] + ct2[0]) % q, (ct1[1] + ct2[1]) % q
 
+
 def homomorphic_mul(ct: tuple[Tensor, Tensor], pt: int):
     ct0, ct1 = ct
     m = Tensor.zeros(N, dtype=dtypes.int32).contiguous() % t
@@ -69,6 +70,7 @@ def homomorphic_mul(ct: tuple[Tensor, Tensor], pt: int):
     _c0 = poly_mul(ct0, m, N, q)
     _c1 = poly_mul(ct1, m, N, q)
     return (_c0, _c1)
+
 
 # Example usage
 if __name__ == "__main__":
