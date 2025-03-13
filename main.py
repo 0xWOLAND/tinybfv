@@ -89,7 +89,6 @@ if __name__ == "__main__":
     add_result = decrypt(sk, homomorphic_add(ct1, ct2))
     add_expected = (m1 + m2) % t
 
-    # Test homomorphic multiplication with relinearization
     C = randint(0, 100)
     mul_result = decrypt(sk, homomorphic_mul(ct1, C))
     mul_expected = (m1 * C) % t
