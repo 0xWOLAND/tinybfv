@@ -1,6 +1,5 @@
 from tinygrad import Tensor, dtypes
 
-P = 127  # Prime field modulus
 N = 2**4  # Ring dimension (polynomial degree + 1)
 t = 2**8  # Plaintext modulus
 q = 2**20 # Ciphertext modulus
