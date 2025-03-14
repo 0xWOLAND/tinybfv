@@ -70,4 +70,3 @@ def homomorphic_mul(ct: tuple[Tensor, Tensor], pt: int):
     _c0 = poly_mul(ct0, m, N, q)
     _c1 = poly_mul(ct1, m, N, q)
     return (_c0, _c1)
-

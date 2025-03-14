@@ -1,5 +1,5 @@
 from tinygrad import Tensor, dtypes
-from bfv import N, t, keygen, encrypt, decrypt, homomorphic_add, homomorphic_mul
+from tinybfv.bfv import N, t, keygen, encrypt, decrypt, homomorphic_add, homomorphic_mul
 
 
 def test_homomorphic_operations():

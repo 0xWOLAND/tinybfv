@@ -5,6 +5,7 @@ description = "BFV implementation in tinygrad"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "numpy>=2.2.3",
     "pytest>=8.3.5",
     "ruff>=0.9.10",
     "tinygrad>=0.10.2",
