@@ -9,4 +9,6 @@ dependencies = [
     "pytest>=8.3.5",
     "ruff>=0.9.10",
     "tinygrad>=0.10.2",
+    "torch>=2.6.0",
+    "triton>=3.2.0",
 ]
