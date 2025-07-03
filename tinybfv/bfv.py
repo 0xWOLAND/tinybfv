@@ -10,25 +10,24 @@ base = 2**16
 def poly_mul(a: Tensor, b: Tensor, mod: int):
     a, b = a.cast(dtypes.int32), b.cast(dtypes.int32)
     
-    i_idx = Tensor.arange(N).reshape(-1, 1)
-    j_idx = Tensor.arange(N).reshape(1, -1)
+    # Vectorized negacyclic convolution
+    i_idx = Tensor.arange(N).reshape(N, 1).expand(N, N)
+    j_idx = Tensor.arange(N).reshape(1, N).expand(N, N)
+    k_idx = Tensor.arange(N).reshape(1, 1, N).expand(N, N, N)
     
     a_exp = a[i_idx]
     b_exp = b[j_idx]
     prods = a_exp * b_exp
     degs = i_idx + j_idx
     
-    result = Tensor.zeros(N, dtype=dtypes.int32)
+    # Accumulate all coefficients at once
+    norm_mask = (degs.unsqueeze(2) == k_idx).cast(dtypes.int32)
+    neg_mask = (degs.unsqueeze(2) == (k_idx + N)).cast(dtypes.int32)
     
-    for k in range(N):
-        norm_mask = (degs == k).cast(dtypes.int32)
-        neg_mask = (degs == (k + N)).cast(dtypes.int32)
-        
-        coeff = (prods * norm_mask).sum() - (prods * neg_mask).sum()
-        update_mask = (Tensor.arange(N) == k).cast(dtypes.int32)
-        result = result + update_mask * coeff
+    norm_contrib = (prods.unsqueeze(2) * norm_mask).sum(axis=(0, 1))
+    neg_contrib = (prods.unsqueeze(2) * neg_mask).sum(axis=(0, 1))
     
-    return result % mod
+    return (norm_contrib - neg_contrib) % mod
 
 
 def noise():
@@ -37,10 +36,10 @@ def noise():
 
 def base_decomp(poly: Tensor, num_limbs: int):
     result = []
-    temp = poly.cast(dtypes.int32)
+    temp = poly.cast(dtypes.int64)
     
     for _ in range(num_limbs):
-        result.append(temp % base)
+        result.append((temp % base).cast(dtypes.int32))
         temp = temp // base
     
     return result
@@ -56,13 +55,12 @@ def keygen():
     pk = (pk0, a)
     
     num_limbs = math.ceil(math.log(q, base))
-    rlk = []
     s_sq = poly_mul(s, s, q)
     
+    rlk = []
     for i in range(num_limbs):
         ai = Tensor.randint((N,), low=0, high=q, dtype=dtypes.int32)
         ei = noise()
-        
         rlk0 = (-poly_mul(ai, s, q) + ei + (base ** i) * s_sq) % q
         rlk.append((rlk0, ai))
     
@@ -77,47 +75,67 @@ def encrypt(pk, m: Tensor):
     scaled_m = ((q // t) * m) % q
     ct0 = (poly_mul(pk0, u, q) + e1 + scaled_m) % q
     ct1 = poly_mul(pk1, u, q) + e2
-    return (ct0, ct1)
+    return [ct0, ct1]
 
 
 def decrypt(sk: Tensor, ct):
-    ct0, ct1 = ct
-    dec = (ct0 + poly_mul(ct1, sk, q)) % q
+    dec = (ct[0] + poly_mul(ct[1], sk, q)) % q
     return (((dec * t) + (q // 2)) // q) % t
 
 
 def add(ct1, ct2):
-    return (ct1[0] + ct2[0]) % q, (ct1[1] + ct2[1]) % q
+    max_len = max(len(ct1), len(ct2))
+    zeros = Tensor.zeros(N, dtype=dtypes.int32)
+    
+    result = []
+    for i in range(max_len):
+        c1 = ct1[i] if i < len(ct1) else zeros
+        c2 = ct2[i] if i < len(ct2) else zeros
+        result.append((c1 + c2) % q)
+    
+    return result
 
 
 def relinearize(ct, rlk):
-    c0, c1, c2 = ct
-    decomp = base_decomp(c2, len(rlk))
+    if len(ct) < 3:
+        return ct
     
-    res_c0, res_c1 = c0, c1
+    *lower, c_high = ct
+    decomp = base_decomp(c_high, len(rlk))
     
+    if len(lower) == 1:
+        lower.append(Tensor.zeros(N, dtype=dtypes.int32))
+    
+    result = list(lower)
+    
+    # Vectorized relinearization  
     for i, (rlk0, rlk1) in enumerate(rlk):
-        res_c0 = (res_c0 + poly_mul(decomp[i], rlk0, q)) % q
-        res_c1 = (res_c1 + poly_mul(decomp[i], rlk1, q)) % q
+        result[0] = (result[0] + poly_mul(decomp[i], rlk0, q)) % q
+        result[1] = (result[1] + poly_mul(decomp[i], rlk1, q)) % q
     
-    return (res_c0, res_c1)
+    return result
 
 
-def mul_ct(ct1, ct2, rlk):
-    a0, a1 = ct1
-    b0, b1 = ct2
+def mul_ct(ct1, ct2, rlk, lazy_threshold=3):
+    # Compute product
+    result_deg = len(ct1) + len(ct2) - 1
+    result = [Tensor.zeros(N, dtype=dtypes.int32) for _ in range(result_deg)]
     
-    c0 = poly_mul(a0, b0, q)
-    c1 = (poly_mul(a0, b1, q) + poly_mul(a1, b0, q)) % q
-    c2 = poly_mul(a1, b1, q)
+    for i, p1 in enumerate(ct1):
+        for j, p2 in enumerate(ct2):
+            result[i + j] = (result[i + j] + poly_mul(p1, p2, q)) % q
     
-    return relinearize((c0, c1, c2), rlk)
+    # Lazy relinearization
+    while len(result) > lazy_threshold + 1:
+        result = relinearize(result, rlk)
+    
+    return result
 
 
 def mul_pt(ct, pt: int):
-    ct0, ct1 = ct
-    m = Tensor([pt] + [0] * (N-1), dtype=dtypes.int32)
-    return (poly_mul(ct0, m, q), poly_mul(ct1, m, q))
+    pt_poly = Tensor.zeros(N, dtype=dtypes.int32)
+    pt_poly = pt_poly + (Tensor.arange(N) == 0).cast(dtypes.int32) * pt
+    return [poly_mul(p, pt_poly, q) for p in ct]
 
 
 class BFV:
@@ -128,6 +146,9 @@ class BFV:
         return encrypt(self.pk, m)
     
     def dec(self, ct):
+        # Force to degree 1 for decryption
+        while len(ct) > 2:
+            ct = relinearize(ct, self.rlk)
         return decrypt(self.sk, ct)
     
     def add(self, ct1, ct2):
